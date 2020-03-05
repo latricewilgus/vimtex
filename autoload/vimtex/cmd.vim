@@ -22,6 +22,9 @@ function! vimtex#cmd#init_buffer() abort " {{{1
 
   nnoremap <silent><buffer> <plug>(vimtex-cmd-toggle-star)
         \ :<c-u>call <sid>operator_setup('toggle_star')<bar>normal! g@l<cr>
+
+  nnoremap <silent><buffer> <plug>(vimtex-cmd-toggle-frac)
+        \ :<c-u>call <sid>operator_setup('toggle_frac')<bar>normal! g@l<cr>
 endfunction
 
 " }}}1
@@ -227,6 +230,101 @@ function! vimtex#cmd#toggle_star() abort " {{{1
 endfunction
 
 " }}}1
+function! vimtex#cmd#toggle_frac() abort " {{{1
+  let l:frac = s:get_frac_cmd()
+  if empty(l:frac)
+    let l:frac = s:get_frac_inline()
+  endif
+  if empty(l:frac) | return | endif
+
+  let l:lnum = line('.')
+  let l:line = getline(l:lnum)
+  call setline(l:lnum,
+        \ strpart(l:line, 0, l:frac.col_start-1)
+        \ . (l:frac.type ==# 'cmd' ? l:frac.text_inline : l:frac.text_cmd)
+        \ . strpart(l:line, l:frac.col_end))
+endfunction
+
+" }}}1
+
+function! s:get_frac_cmd() abort " {{{1
+  let l:save_pos = vimtex#pos#get_cursor()
+  while v:true
+    let l:cmd = s:get_cmd('prev')
+    if empty(l:cmd) || l:cmd.pos_start.lnum < line('.') | return {} | endif
+
+    if l:cmd.name ==# '\frac'
+      break
+    endif
+
+    call vimtex#pos#set_cursor(vimtex#pos#prev(l:cmd.pos_start))
+  endwhile
+  call vimtex#pos#set_cursor(l:save_pos)
+
+  let l:frac = {
+        \ 'type': 'cmd',
+        \ 'col_start': l:cmd.pos_start.cnum,
+        \ 'col_end': l:cmd.pos_end.cnum,
+        \}
+
+  if len(l:cmd.args) >= 2
+    let l:consume = []
+    let l:frac.denom = l:cmd.args[0].text
+    let l:frac.numerator = l:cmd.args[1].text
+  elseif len(l:cmd.args) == 1
+    let l:consume = ['numerator']
+    let l:frac.denom = l:cmd.args[0].text
+    let l:frac.numerator = ''
+  else
+    let l:consume = ['denom', 'numerator']
+    let l:frac.denom = ''
+    let l:frac.numerator = ''
+  endif
+
+  " Handle unfinished cases
+  let l:line = getline('.')
+  let l:pos = l:frac.col_end
+  for l:key in l:consume
+    let l:part = strpart(l:line, l:frac.col_end)
+
+    let l:blurp = matchstr(l:part, '^\s*{[^}]*}')
+    if !empty(l:blurp)
+      let l:frac[l:key] = trim(l:blurp)[1:-2]
+      let l:frac.col_end += len(l:blurp)
+      continue
+    endif
+
+    let l:blurp = matchstr(l:part, '^\s*\w')
+    if !empty(l:blurp)
+      let l:frac[l:key] = trim(l:blurp)
+      let l:frac.col_end += len(l:blurp)
+    endif
+  endfor
+
+  " Abort if \frac region does not cover cursor
+  if l:frac.col_end < col('.') | return {} | endif
+
+  let l:frac.text_cmd = strpart(getline('.'),
+        \ l:frac.col_start, l:frac.col_end - l:frac.col_start + 1)
+  let l:frac.text_inline =
+        \ (strlen(l:frac.denom) > 1 ? '(' . l:frac.denom . ')' : l:frac.denom)
+        \ . '/'
+        \ . (strlen(l:frac.numerator) > 1 ? '(' . l:frac.numerator . ')' : l:frac.numerator)
+
+  return l:frac
+endfunction
+
+" }}}1
+function! s:get_frac_inline() abort " {{{1
+  let l:frac = {'type': 'cmd', 'col_start': 5, 'col_end': 10, 'denom': 'xx', 'numerator': 'yy'}
+
+  let l:frac.text_inline = '...'
+  let l:frac.text_cmd = '\frac' . l:frac.denom . l:frac.numerator
+
+  return l:frac
+endfunction
+
+" }}}1
 
 function! vimtex#cmd#get_next() abort " {{{1
   return s:get_cmd('next')
@@ -301,6 +399,7 @@ function! s:operator_function(_) abort " {{{1
         \   'create': 'create(l:name, 0)',
         \   'delete': 'delete()',
         \   'toggle_star': 'toggle_star()',
+        \   'toggle_frac': 'toggle_frac()',
         \ }[s:operator]
 endfunction
 
