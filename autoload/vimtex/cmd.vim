@@ -316,12 +316,74 @@ endfunction
 
 " }}}1
 function! s:get_frac_inline() abort " {{{1
-  let l:frac = {'type': 'cmd', 'col_start': 5, 'col_end': 10, 'denom': 'xx', 'numerator': 'yy'}
+  let l:line = getline('.')
+  let l:col = col('.')
 
-  let l:frac.text_inline = '...'
-  let l:frac.text_cmd = '\frac' . l:frac.denom . l:frac.numerator
+  let l:pos_after = -1
+  let l:pos_before = -1
+  while v:true
+    let l:pos_before = l:pos_after
+    let l:pos_after = match(l:line, '\/', l:pos_after+1)
+    if l:pos_after < 0 || l:pos_after >= l:col | break | endif
+  endwhile
 
-  return l:frac
+  if l:pos_after == -1 && l:pos_before == -1
+    return {}
+  endif
+
+  let l:positions = [l:pos_before]
+  if l:pos_after > 0
+    let l:positions += [l:pos_after]
+  endif
+
+  for l:pos in l:positions
+    let l:frac = {'type': 'inline'}
+
+    let l:before = strpart(l:line, 0, l:pos)
+    let l:num = matchstr(l:before, '(\zs[^)]*)\s*$')
+    if !empty(l:num)
+      let l:frac.numerator = matchstr(l:num, '^.*\ze)')
+      let l:frac.col_start = l:pos - strlen(l:num)
+    else
+      let l:num = matchstr(l:before, '\S\s*$')
+      let l:frac.numerator = matchstr(l:num, '^\S')
+      let l:frac.col_start = l:pos - strlen(l:num) + 1
+    endif
+
+    let l:after = strpart(l:line, l:pos+1)
+    let l:den = matchstr(l:after, '^\s*([^)]*\ze)')
+    if !empty(l:den)
+      let l:frac.denom = matchstr(l:den, '(\zs.*$')
+      let l:frac.col_end = l:pos + strlen(l:den) + 2
+    else
+      let l:den = matchstr(l:after, '^\s*\S')
+      let l:frac.denom = matchstr(l:den, '\S$')
+      let l:frac.col_end = l:pos + strlen(l:den) + 1
+    endif
+
+    let l:frac.text_inline = strpart(l:line,
+          \ l:frac.col_start,
+          \ l:frac.col_end - l:frac.col_start + 1)
+
+    let l:multinum = strlen(l:frac.numerator) > 1
+    let l:multiden = strlen(l:frac.denom) > 1
+
+    let l:frac.text_cmd  = '\frac'
+          \ . (l:multinum ? '{' : ' ')
+          \ . l:frac.numerator
+          \ . (l:multinum && l:multiden ? '}{'
+          \     : (l:multinum ? '} '
+          \     : (l:multiden ? ' {'
+          \     : ' ')))
+          \ . l:frac.denom
+          \ . (l:multiden ? '}' : '')
+
+    if l:col >= l:frac.col_start && l:col <= l:frac.col_end
+      return l:frac
+    endif
+  endfor
+
+  return {}
 endfunction
 
 " }}}1
