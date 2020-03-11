@@ -289,14 +289,14 @@ function! s:get_frac_cmd() abort " {{{1
 
     let l:blurp = matchstr(l:part, '^\s*{[^}]*}')
     if !empty(l:blurp)
-      let l:frac[l:key] = trim(l:blurp)[1:-2]
+      let l:frac[l:key] = vimtex#util#trim(l:blurp)[1:-2]
       let l:frac.col_end += len(l:blurp)
       continue
     endif
 
     let l:blurp = matchstr(l:part, '^\s*\w')
     if !empty(l:blurp)
-      let l:frac[l:key] = trim(l:blurp)
+      let l:frac[l:key] = vimtex#util#trim(l:blurp)
       let l:frac.col_end += len(l:blurp)
     endif
   endfor
