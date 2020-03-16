@@ -251,7 +251,10 @@ function! s:get_frac_cmd() abort " {{{1
   let l:save_pos = vimtex#pos#get_cursor()
   while v:true
     let l:cmd = s:get_cmd('prev')
-    if empty(l:cmd) || l:cmd.pos_start.lnum < line('.') | return {} | endif
+    if empty(l:cmd) || l:cmd.pos_start.lnum < line('.')
+      call vimtex#pos#set_cursor(l:save_pos)
+      return {}
+    endif
 
     if l:cmd.name ==# '\frac'
       break
@@ -306,10 +309,16 @@ function! s:get_frac_cmd() abort " {{{1
 
   let l:frac.text_cmd = strpart(getline('.'),
         \ l:frac.col_start, l:frac.col_end - l:frac.col_start + 1)
-  let l:frac.text_inline =
-        \ (strlen(l:frac.denom) > 1 ? '(' . l:frac.denom . ')' : l:frac.denom)
-        \ . '/'
-        \ . (strlen(l:frac.numerator) > 1 ? '(' . l:frac.numerator . ')' : l:frac.numerator)
+
+  let l:denom = (l:frac.denom =~# '^\\\?\w*$')
+        \ ? l:frac.denom
+        \ : '(' . l:frac.denom . ')'
+
+  let l:numerator = (l:frac.numerator =~# '^\\\?\w*$')
+        \ ? l:frac.numerator
+        \ : '(' . l:frac.numerator . ')'
+
+  let l:frac.text_inline = l:denom . '/' . l:numerator
 
   return l:frac
 endfunction
@@ -340,24 +349,23 @@ function! s:get_frac_inline() abort " {{{1
     let l:frac = {'type': 'inline'}
 
     let l:before = strpart(l:line, 0, l:pos)
-    let l:num = matchstr(l:before, '(\zs[^)]*)\s*$')
-    if !empty(l:num)
-      let l:frac.numerator = matchstr(l:num, '^.*\ze)')
-      let l:frac.col_start = l:pos - strlen(l:num)
+    if l:before =~# ')\s*$'
+      let l:frac.col_start = s:get_inline_limit(l:before, -1)
+      let l:frac.numerator = matchstr(l:before, '.*\ze)\s*$', l:frac.col_start)
     else
-      let l:num = matchstr(l:before, '\S\s*$')
-      let l:frac.numerator = matchstr(l:num, '^\S')
+      let l:num = matchstr(l:before, '\\\?\w*\s*$')
+      let l:frac.numerator = vimtex#util#trim(l:num)
       let l:frac.col_start = l:pos - strlen(l:num) + 1
     endif
 
     let l:after = strpart(l:line, l:pos+1)
-    let l:den = matchstr(l:after, '^\s*([^)]*\ze)')
-    if !empty(l:den)
-      let l:frac.denom = matchstr(l:den, '(\zs.*$')
-      let l:frac.col_end = l:pos + strlen(l:den) + 2
+    if l:after =~# '^\s*('
+      let l:index = s:get_inline_limit(l:after, 1)
+      let l:frac.col_end = l:pos + l:index + 2
+      let l:frac.denom = matchstr(strpart(l:after, 0, l:index), '^\s*(\zs.*')
     else
-      let l:den = matchstr(l:after, '^\s*\S')
-      let l:frac.denom = matchstr(l:den, '\S$')
+      let l:den = matchstr(l:after, '^\s*\\\?\w*')
+      let l:frac.denom = vimtex#util#trim(l:den)
       let l:frac.col_end = l:pos + strlen(l:den) + 1
     endif
 
@@ -365,18 +373,8 @@ function! s:get_frac_inline() abort " {{{1
           \ l:frac.col_start,
           \ l:frac.col_end - l:frac.col_start + 1)
 
-    let l:multinum = strlen(l:frac.numerator) > 1
-    let l:multiden = strlen(l:frac.denom) > 1
-
-    let l:frac.text_cmd  = '\frac'
-          \ . (l:multinum ? '{' : ' ')
-          \ . l:frac.numerator
-          \ . (l:multinum && l:multiden ? '}{'
-          \     : (l:multinum ? '} '
-          \     : (l:multiden ? ' {'
-          \     : ' ')))
-          \ . l:frac.denom
-          \ . (l:multiden ? '}' : '')
+    let l:frac.text_cmd  = printf('\frac{%s}{%s}',
+          \ l:frac.numerator, l:frac.denom)
 
     if l:col >= l:frac.col_start && l:col <= l:frac.col_end
       return l:frac
@@ -384,6 +382,37 @@ function! s:get_frac_inline() abort " {{{1
   endfor
 
   return {}
+endfunction
+
+" }}}1
+function! s:get_inline_limit(str, dir) abort " {{{1
+  if a:dir > 0
+    let l:open = '('
+    let l:string = a:str
+  else
+    let l:open = ')'
+    let l:string = join(reverse(split(a:str, '\zs')), '')
+  endif
+
+  let idx = -1
+  let depth = 0
+
+  while idx < len(l:string)
+    let idx = match(l:string, '[()]', idx + 1)
+    if idx < 0
+      let idx = len(l:string)
+    endif
+    if idx >= len(l:string) || l:string[idx] ==# l:open
+      let depth += 1
+    else
+      let depth -= 1
+      if depth == 0
+        return a:dir < 0 ? len(a:str) - idx : idx
+      endif
+    endif
+  endwhile
+
+  return -1
 endfunction
 
 " }}}1
