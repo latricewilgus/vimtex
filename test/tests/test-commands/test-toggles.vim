@@ -27,10 +27,14 @@ for [s:in, s:out] in [
       \ ['$\frac {x+1}  {x-1}$', '$(x+1)/(x-1)$'],
       \ ['$\frac {x-1} x$', '$(x-1)/x$'],
       \ ['$\frac x  {x-1}$', '$x/(x-1)$'],
-      \ ['$x / (x-1)$', '$\frac x {x-1}$'],
-      \ ['$(x-1) /x$', '$\frac{x-1} x$'],
+      \ ['$x / (x-1)$', '$\frac{x}{x-1}$'],
+      \ ['$(x-1) /x$', '$\frac{x-1}{x}$'],
       \ ['$(x+1)  /(x-1)$', '$\frac{x+1}{x-1}$'],
       \ ['$(x+1)/ (x-1)$', '$\frac{x+1}{x-1}$'],
+      \ ['$\alpha/\mu$', '$\frac{\alpha}{\mu}$'],
+      \ ['$\frac{\alpha}{\mu}$', '$\alpha/\mu$'],
+      \ ['$(r+t)/((\mu))$', '$\frac{r+t}{(\mu)}$'],
+      \ ['$((\mu))/(r+t)$', '$\frac{(\mu)}{r+t}$'],
       \]
   call vimtex#test#keys('3ltsf', [s:in], [s:out])
 endfor
